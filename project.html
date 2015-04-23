@@ -1,0 +1,706 @@
+<!doctype html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.12.2/react-with-addons.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.12.2/JSXTransformer.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-router/0.11.6/react-router.js"></script>
+  <script src="https://cdn.firebase.com/js/client/2.2.2/firebase.js"></script>
+  <link rel="stylesheet" type="text/css" href="projcss.css"  />
+    
+  </style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script type="text/jsx">
+
+var Router        = window.ReactRouter;
+var Link          = Router.Link;
+var Route         = Router.Route;
+var DefaultRoute  = Router.DefaultRoute;
+var NotFoundRoute = Router.NotFoundRoute;
+var RouteHandler  = Router.RouteHandler;
+
+var Db          = new Firebase("https://stackoverflow932.firebaseio.com");
+var DbQuestions = Db.child('questions');
+var DbAnswers   = Db.child('answers');
+var DbTags   = Db.child('tag');
+
+
+
+var Pagination = React.createClass({
+
+  render: function() {
+    return ( 
+      <div className="Pagination">
+		{this.renderPrev()}
+        {this.renderNext()}
+      </div>
+    );
+  },
+
+  renderPrev: function() {
+    if(this.isFirstPage()) {
+      return null;
+    }
+    return <Link className="Pagination-prev" to="questions" params={ { pageNumber: this.props.currentPage - 1,tag:this.props.tag  } }>Prev</Link>;
+  },
+
+  renderNext: function() {
+    if (this.isLastPage()) {
+      return null;
+    }
+    return <Link className="Pagination-next" to="questions" params={ { pageNumber: this.props.currentPage + 1,tag:this.props.tag } }>Next</Link>
+  },
+
+  isFirstPage: function() {
+    return this.props.currentPage === 0;
+  },
+
+  isLastPage: function() {
+    var totalPages = Math.ceil(this.props.itemCount / this.props.perPage);
+    return (this.props.currentPage + 1) >= totalPages;
+  },
+
+});
+
+var App = React.createClass({
+  render: function() {
+    return (
+      <div className="container">
+        <div className="nav">
+          <Link className="nav-home link" to="questions" params={ { pageNumber: 0,tag:'notag'  } }>Questions</Link>
+		  <Link className="nav-tag link" to="tags">Browse by tag</Link>
+		  <Link className="nav-ask link" to="contact">Ask Question</Link>
+          <Link className="nav-contact link" to="contact">Contact</Link>
+        </div>
+        <RouteHandler/>
+		<div className="downbar"> 
+		<p className="float share">A big ball of wibbly wobbly, timey wimey stuff</p>
+		</div>
+      </div>
+    );
+  },
+});
+
+var Home = React.createClass({
+	
+  render: function() {
+    return (
+      <div >
+	  <div className="welcome">Welcome</div>
+	  <div className="welcome">insert welcome message</div>
+	  
+        <Link className="share float" to="questions" params={ { pageNumber: 0,tag:'notag'  } }>continue to full site</Link>
+      </div>
+    );
+  },
+
+  
+	
+});
+var Default = React.createClass({
+
+ 
+  mixins: [ Router.State ],
+
+  getInitialState: function() {
+    return {
+      perPage:   10,
+      questions: [],
+	  allquestions: [],
+	  answerclass: 'sort',
+	  dateclass: 'sort',
+	  voteclass: 'sort',
+    };
+  },
+
+  componentWillMount: function() {
+    DbQuestions.orderByKey().on('value', this.onQuestionsLoaded);
+  },
+
+  render: function() {
+  this.getQuestions();
+  this.sortquestions();
+    return (
+      <div className="QuestionList">
+        <h3>Questions</h3>
+		<button className={this.state.dateclass} onClick={this.orderbydate}>order by date</button>
+		<button className={this.state.answerclass} onClick={this.orderbyanswer}>order by answers</button>
+		<button className={this.state.voteclass} onClick={this.orderbyvote}>order by votes</button>
+        <ul>
+          {this.renderCurrentPage()}
+        </ul>
+        <Pagination currentPage={this.getCurrentPage()} itemCount={this.state.questions.length} perPage={this.state.perPage} tag={this.getTag()} />
+		
+      </div>
+    );
+  },
+
+  getCurrentPage: function() {
+    var pageNumber = this.getParams().pageNumber;
+    return  pageNumber ? parseInt(pageNumber, 10) : 0;
+  },
+  
+  getTag: function() {
+    this.state.tag = this.getParams().tag;
+    return  this.state.tag ? this.state.tag : 'notag';
+  },
+
+  onQuestionsLoaded: function(dataSnapshot) {
+    var questions = [];
+	var tag = this.getParams().tag;
+	dataSnapshot.forEach(function(question) {
+	if(tag)
+		if(tag=='notag'||question.val().tag.indexOf(tag)!==-1)
+			questions.push(question);
+		else;
+	else
+		questions.push(question);
+    });
+    this.setState({ allquestions: questions });
+  },
+  
+  getQuestions: function() {
+    var questions=[];
+	var tag = this.getParams().tag;
+	this.state.allquestions.map(function(question) {
+		if(tag)
+			if(tag=='notag'||question.val().tag.indexOf(tag)!==-1)
+			{
+				questions.push(question);
+				
+			}
+		});
+	
+
+	this.state.questions=questions;
+  },
+  
+  componentWillReceiveProps: function(nextProps) {
+		this.forceUpdate();
+    if (nextProps.currentPage !== this.props.currentPage) {
+    }
+  },
+  
+  orderbyanswer: function() {
+	this.state.sort='answer';
+	this.state.voteclass='sort';
+	this.state.dateclass='sort';
+	if(this.state.sortdirection==='down')
+	{
+		this.state.answerclass='sort asc';
+		this.setState({sortdirection:'up'});
+	}
+	else
+	{
+		this.state.answerclass='sort desc';
+		this.setState({sortdirection:'down'});
+	}
+  },
+  
+  orderbyvote: function() {
+	this.state.sort='vote';
+	this.state.answerclass='sort';
+	this.state.dateclass='sort';
+	if(this.state.sortdirection==='down'){
+		this.state.voteclass='sort asc';
+		this.setState({sortdirection:'up'});
+	}
+	else{
+		this.state.voteclass='sort desc';
+		this.setState({sortdirection:'down'});
+	}
+  },
+  
+  orderbydate: function() {
+	this.state.sort='date';
+	this.state.voteclass='sort';
+	this.state.answerclass='sort';
+	if(this.state.sortdirection==='down')
+	{
+		this.state.dateclass='sort asc';
+		this.setState({sortdirection:'up'});
+	}
+	else
+	{
+		this.state.dateclass='sort desc';
+		this.setState({sortdirection:'down'});
+	}
+  },
+
+  renderCurrentPage: function() {
+    var startIndex = this.state.perPage * this.getCurrentPage();
+    var endIndex   = startIndex + this.state.perPage;
+    return this.state.questions.slice(startIndex, endIndex).map(function(question) {
+      return (
+        <li className="questionli" key={'question-' + question.key()}>
+		<div className="questionpart answer">
+		
+        <p className="answersnumber textcenter">answers</p>
+		<p className="answernumbervalue textcenter">{question.val().answers}</p>
+		</div>
+		
+		<div className="questionpart votes">
+	
+		<p className="votesnumber textcenter">votes</p>
+		<p className="votenumbervalue textcenter" >{question.val().vote}</p> 
+		
+		</div>
+		<div className="questionpart content">
+		<Link className="questioncontent share" to="question" params={ { questionId: question.key() } }>{question.val().title}</Link>
+		</div>
+	
+		<Questionbutton id={question.key()} vote={question.val().vote} />
+
+        </li>
+      );
+    });
+  },
+  sortquestions: function() {
+	if(this.state.sort=='answer'){
+		this.state.questions.sort(function(a, b){return a.val().answers-b.val().answers});
+	}
+	if(this.state.sort=='vote'){
+		this.state.questions.sort(function(a, b){return a.val().vote-b.val().vote});
+	}
+	if(this.state.sort=='date'){
+		this.state.questions.sort(function(a, b){return a.val().date-b.val().date});
+	}
+	if(this.state.sortdirection==='down')
+		this.state.questions.reverse();
+  }
+
+});
+var Answers = React.createClass({
+
+  mixins: [ Router.State ],
+
+  getInitialState: function() {
+    return {
+      answers: [],
+    };
+  },
+
+  componentWillMount: function() {
+    DbAnswers.orderByChild("id").equalTo(this.getParams().questionId).on('value', this.onAnswersLoaded);
+  },
+
+
+  render: function() {
+  
+  
+    return (
+      <div className="answer-container">
+        <p className="numofanswers">{this.state.answers.length} Answers</p>
+        <ul>
+		<div className="eachanswer-container">
+          {this.renderPage()}
+		</div>
+		<div className="ads">
+		aa
+		</div>
+        </ul>
+      </div>
+    );
+  },
+
+  onAnswersLoaded: function(dataSnapshot) {
+    var answers = [];
+    dataSnapshot.forEach(function(answer) {
+		answers.push(answer);
+    });
+    this.setState({ answers: answers });
+  },
+
+  renderPage: function() {
+	if(this.state.answers.length===0)
+		return (<li className="answerpage answer"><div className="share-container">Know someone who can answer? Share a link to this question via <a className="share">email</a>, <a className="share">Google+</a>, <a className="share">Twitter</a>, or <a className="share">Facebook</a>.</div></li>);
+	else
+		return this.state.answers.map(function(answer) {
+			return (
+			
+			<div className="eachanswer">
+				<li className="answerpage answer">
+				<p className="marginb">{ answer.val().text }</p>
+					
+				<p className="marginb space">Posted by {answer.val().user} at {answer.val().date}</p> 	
+				<a className="marginb share float">Report as spam</a>
+				
+				</li>
+				<div className="answersidebar">
+				
+				
+					<Answerbutton id={answer.key()} vote={answer.val().vote} />
+				</div>
+				
+			</div>
+			
+			);
+		});
+	},
+	
+});
+var Answerbutton = React.createClass({
+ 
+  render: function() {
+    return (
+		<span className="sidebarthing">
+			 <a className="textcenter" onClick={this.up}><div className="arrow-up answer"></div></a>
+			<p className="textcenter p">{this.props.vote}</p>
+			<a className="textcenter" onClick={this.down}><div className="arrow-down"></div></a>
+			
+		</span>
+    );
+  },
+  
+  up: function() {
+    DbAnswers.child(this.props.id).update({vote:this.props.vote+1,});
+  },
+  
+  down: function() {
+    DbAnswers.child(this.props.id).update({vote:this.props.vote-1,});
+  },
+  
+});
+
+var Questionbutton = React.createClass({
+ 
+  render: function() {
+    return (
+      <div className="questionpart button">
+        <a className="textcenter" onClick={this.up}><div className="arrow-up"></div></a>
+		<a className="textcenter" onClick={this.down}><div className="arrow-down"></div></a>
+      </div>
+    );
+  },
+  
+  up: function() {
+    DbQuestions.child(this.props.id).update({vote:this.props.vote+1,});
+  },
+  
+  down: function() {
+    DbQuestions.child(this.props.id).update({vote:this.props.vote-1,});
+  },
+  
+});
+var Addanswer = React.createClass({
+  mixins: [Router.State],
+  
+  getInitialState: function() {
+    return {};
+  },
+  
+  onChangetext: function(e) {
+    this.setState({text: e.target.value});
+  },
+  
+	onChangetitle: function(e) {
+    this.setState({title: e.target.value});
+  },
+  
+  handleSubmit: function(e) {
+    e.preventDefault();
+    if (this.state.text && this.state.text.trim().length && this.state.title && this.state.title.trim().length !== 0) {
+		DbAnswers.push({
+			text: this.state.text,
+			user: this.state.title,
+			id: this.getParams().questionId,
+			vote: 0,
+			date: Firebase.ServerValue.TIMESTAMP,
+		});
+		this.setState({text: ""});
+		this.setState({title: ""});
+		DbQuestions.child(this.getParams().questionId).update({answers:this.props.numofanswers + 1});
+    }
+  },
+
+  
+  
+  render: function() {
+    return (
+      <div className="answercontainer">
+        <form className="answerform" onSubmit={ this.handleSubmit }>
+		<textarea className="answerpage text" onChange={ this.onChangetext } value={ this.state.text } />
+		<div className="answerpage preview">{this.state.text}</div>
+		<p className="answerpage p">Post as</p>
+		<div className="answerpage post">
+		<label className="answerpage user">User</label>
+		<input className="answerpage user" onChange={ this.onChangetitle } value={ this.state.title } />
+		<label className="answerpage user">Email</label>
+		<input className="answerpage user" onChange={ this.onChangeemail } value={ this.state.email } />
+		</div>
+		<button className="answerpage submit">Post your answer</button>
+        </form>
+      </div>
+    );
+  }
+  
+  
+});
+
+var Addquestion = React.createClass({
+  mixins: [Router.State],
+  
+  getInitialState: function() {
+    return {};
+	
+  },
+
+  onChangetext: function(e) {
+    this.setState({text: e.target.value});
+  },
+	onChangetitle: function(e) {
+    this.setState({title: e.target.value});
+  },
+  handleSubmit: function(e) {
+    e.preventDefault();
+	var time = new Date().getTime();
+    if (this.state.text && this.state.text.trim().length && this.state.title && this.state.title.trim().length !== 0) {
+      DbQuestions.push({
+        body: this.state.text,
+		title: this.state.title,
+		date: Firebase.ServerValue.TIMESTAMP,
+		vote: 0,
+		answers: 0,
+		tag: '',
+      });
+      this.setState({text: ""});
+	  this.setState({title: ""});
+    }
+  },
+
+  render: function() {
+    return (
+      <div>
+        <form onSubmit={ this.handleSubmit }>
+		<input onChange={ this.onChangetitle } value={ this.state.title } />
+          <textarea onChange={ this.onChangetext } value={ this.state.text } />
+          <button>submit</button>
+        </form>
+      </div>
+    );
+  }
+  
+  
+});
+
+var Question = React.createClass({
+
+  mixins: [Router.State, Router.Navigation],
+
+  getInitialState: function() {
+    return { title: '', body: '' ,date: '' ,answer: '',vote:'',tag:''};
+  },
+
+  componentWillMount: function() {
+    var id = this.getParams().questionId;
+    DbQuestions
+      .child(id)
+      .on('value', this.onQuestionLoaded);
+  },
+
+  render: function() {
+    return (
+      <div className="Question">
+		<div className="question-main">
+			<p className="answerpage title">{this.state.title}</p>
+			<p className="answerpage content">{this.state.body}</p>
+			<Tag tag={this.state.tag} />
+			<div className="answerpage back"><a  href="#" className="share" onClick={this.onClickBack}>Not what you are looking for?resume searching </a></div>
+		</div>
+		<div className="question-sidebar">
+		<a className="textcenter" onClick={this.up}><div className="arrow-up answer"></div></a>
+		<p>{this.state.vote}</p>
+		<a className="textcenter" onClick={this.down}><div className="arrow-down"></div></a>
+		<p>Added on</p>
+		<p>Added at 12</p>
+		</div>
+		<Answers id={ this.getParams().questionId }  />
+		<div className="answerpage help">Your Answer</div>
+		<Addanswer numofanswers={this.state.answers} />
+      </div>
+
+    );
+  },
+
+  up: function() {
+    DbQuestions.child(this.getParams().questionId).update({vote:this.state.vote+1,});
+  },
+  
+  down: function() {
+    DbQuestions.child(this.getParams().questionId).update({vote:this.state.vote-1,});
+  },
+  onChangetag: function(e) {
+    this.setState({tagform: e.target.value});
+  },
+  handleSubmit: function(e) {
+    e.preventDefault();
+	var tagclone=this.state.tagform;
+	console.log(tagclone);
+    if (this.state.tagform && this.state.tagform.trim().length !== 0 &&this.state.tag.indexOf(this.state.tagform)===-1) {
+	  
+	  DbQuestions.child(this.getParams().questionId).update({tag:this.state.tag+this.state.tagform+',',});
+	  DbTags.orderByChild("tag").equalTo(this.state.tagform).on("value", function(querySnapshot) {
+      if (querySnapshot.numChildren() == 0) 
+        DbTags.push({tag: tagclone,date: Firebase.ServerValue.TIMESTAMP});
+        
+  });		
+    }this.setState({tagform: ""});
+	//else ceva mesaj 
+  },
+  onClickBack: function(event) {
+    event.preventDefault();
+    this.goBack();
+  },
+
+  onQuestionLoaded: function(question) {
+    this.setState({ 
+		title: question.val().title, 
+		body: question.val().body, 
+		answers:question.val().answers, 
+		vote:question.val().vote, 
+		date:question.val().date,
+		tag:question.val().tag});
+  },
+
+});
+var Tag = React.createClass({
+  
+  render: function() {
+    return (
+      <div className="answerpage Tag-container">
+        {this.getTags()}
+      </div>
+    );
+  },
+  
+  getTags: function() {
+  if(this.props.tag.length!==0)
+    {
+	var buffer='';var i;var Tags=[];
+	for(i=0;i<this.props.tag.length;i++)
+		if(this.props.tag[i]===','){
+			Tags.push(buffer);
+			buffer='';
+		}
+		else
+			buffer+=this.props.tag[i];
+	}
+	if(Tags)
+	return Tags.map(function(tag) {
+      return (
+        <Link className="Tag" to="questions" params={ { pageNumber: 0,tag: tag  } }>{tag}</Link> 
+      );
+    });
+  },
+  
+});
+
+var Contact = React.createClass({
+  getInitialState: function() {
+    return {
+      message: '',
+      messageSent: false,
+    };
+  },
+  render: function() {
+    return (
+      <div>
+        <h1>Contact page</h1>
+        {this.state.messageSent ? this.renderSuccess() : this.renderForm() }
+      </div>
+    );
+  },
+  renderForm: function() {
+    return (
+      <div>
+        <textarea value={this.state.message} onChange={this.onChange}/>
+        <p><button onClick={this.showMessage}>Send</button></p>
+      </div>
+    );
+  },
+  renderSuccess: function() {
+    return <div className="success">The message was sent!</div>;
+  },
+  onChange: function(event) {
+    this.setState({ message: event.target.value });
+  },
+  showMessage: function() {
+    alert(this.state.message);
+    this.setState({ messageSent: true });
+  },
+});
+
+var NotFound = React.createClass({
+  render: function() {
+    return <h1 className="error">Page not found!</h1>
+  },
+});
+
+var AllTags = React.createClass({
+  
+  mixins: [ Router.State ],
+
+  getInitialState: function() {
+    return {
+      tags: [],
+    };
+  },
+
+  componentWillMount: function() {
+    DbTags.orderByChild('tag').on('value', this.onTagsLoaded);
+  },
+
+  render: function() {
+    return (
+      <div>
+        <h3>Tags</h3>
+        <ul>
+          {this.renderPage()}
+        </ul>
+      </div>
+    );
+  },
+
+  onTagsLoaded: function(dataSnapshot) {
+    var tags = [];
+    dataSnapshot.forEach(function(tag) {
+		tags.push(tag);
+    });
+    this.setState({ tags: tags });
+  },
+
+  renderPage: function() {
+	
+		return this.state.tags.map(function(tagz) {console.log(tagz.val());
+			return (
+				<li>
+					<Link className="Tag page" to="questions" params={ { pageNumber: 0,tag: tagz.val().tag } }>{tagz.val().tag}</Link> 
+				</li>
+		
+			);
+		});
+	},
+});
+
+var routes = (
+  <Route handler={App} path="/">
+    <DefaultRoute name="home" handler={Home} />
+    <Route name="questions" path="/page/:pageNumber/:tag" handler={Default} />
+    <Route name="question" path="/question/:questionId" handler={Question} />
+    <Route name="contact" path="/contact" handler={Contact} />
+	<Route name="tags" path="/tags" handler={AllTags} />
+    <NotFoundRoute handler={NotFound}/>
+  </Route>
+);
+
+Router.run(routes, function (Handler) {
+  React.render(<Handler/>, document.getElementById('app'));
+});
+
+
+</script>
+</body>
+</html>
